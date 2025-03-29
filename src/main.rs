@@ -1,4 +1,4 @@
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::Router;
 use axum_prometheus::PrometheusMetricLayer;
 use dotenvy::dotenv;
@@ -7,9 +7,10 @@ use tower_http::trace::TraceLayer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
-use crate::routes::health;
+use crate::routes::{create_link, health, redirect};
 
 mod routes;
+mod utils;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -36,6 +37,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .route("/health", get(health))
         .route("/metrics", get(|| async move { metrics_handler.render() }))
+        .route("/redirect/:id", get(redirect))
+        .route("/create", post(create_link))
         .layer(TraceLayer::new_for_http())
         .layer(prometheus_layer)
         .with_state(db);
