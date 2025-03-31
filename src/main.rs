@@ -37,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .route("/health", get(health))
         .route("/metrics", get(|| async move { metrics_handler.render() }))
-        .route("/redirect/:id", get(redirect))
+        .route("/redirect/{id}", get(redirect))
         .route("/create", post(create_link))
         .layer(TraceLayer::new_for_http())
         .layer(prometheus_layer)
