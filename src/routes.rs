@@ -169,3 +169,46 @@ pub async fn create_link(
         "Internal server error".into(),
     ))
 }
+
+pub async fn update_link(
+    State(pool): State<PgPool>,
+    Path(link_id): Path<String>,
+    Json(update_link): Json<LinkTarget>,
+) -> Result<Json<Link>, (StatusCode, String)> {
+    let url = Url::parse(&update_link.target_url)
+        .map_err(|_| (StatusCode::CONFLICT, "url malformed".into()))?
+        .to_string();
+
+    let update_link_timeout = tokio::time::Duration::from_millis(300);
+
+    let updated_link = tokio::time::timeout(
+        update_link_timeout,
+        sqlx::query_as!(
+            Link,
+            r#"
+      with updated_link as (
+        update links
+        set target_url = $1
+        where id = $2
+        returning id, target_url 
+      )
+      select id, target_url 
+      from updated_link
+      "#,
+            &url,
+            &link_id
+        )
+        .fetch_one(&pool),
+    )
+    .await
+    .map_err(internal_error)?;
+
+    match updated_link {
+        Ok(link) => {
+            tracing::debug!("Updated link with id {} targeting {}", link_id, url);
+
+            Ok(Json(link))
+        }
+        Err(err) => Err(internal_error(err)),
+    }
+}
