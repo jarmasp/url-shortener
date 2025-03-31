@@ -29,6 +29,14 @@ pub struct LinkTarget {
     pub target_url: String,
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CountedLinkStatistic {
+    pub amount: Option<i64>,
+    pub referer: Option<String>,
+    pub user_agent: Option<String>,
+}
+
 fn generate_id() -> String {
     let random_number = rand::rng().random_range(0..u32::MAX);
     general_purpose::URL_SAFE_NO_PAD.encode(random_number.to_string())
@@ -208,6 +216,41 @@ pub async fn update_link(
             tracing::debug!("Updated link with id {} targeting {}", link_id, url);
 
             Ok(Json(link))
+        }
+        Err(err) => Err(internal_error(err)),
+    }
+}
+
+pub async fn get_link_statistics(
+    State(pool): State<PgPool>,
+    Path(link_id): Path<String>,
+) -> Result<Json<Vec<CountedLinkStatistic>>, (StatusCode, String)> {
+    let fetch_statistics_timeout = tokio::time::Duration::from_millis(300);
+
+    let statistics = tokio::time::timeout(
+        fetch_statistics_timeout,
+        sqlx::query_as!(
+            CountedLinkStatistic,
+            r#"
+            select count(*) as amount, 
+            referer, 
+            user_agent 
+            from link_statistics 
+            group by link_id, referer, user_agent 
+            having link_id = $1
+            "#,
+            &link_id
+        )
+        .fetch_all(&pool),
+    )
+    .await
+    .map_err(internal_error)?;
+
+    match statistics {
+        Ok(statistics) => {
+            tracing::debug!("Statistics for link with id {} fetched", link_id);
+
+            Ok(Json(statistics))
         }
         Err(err) => Err(internal_error(err)),
     }

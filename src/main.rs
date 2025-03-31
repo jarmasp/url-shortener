@@ -7,7 +7,7 @@ use tower_http::trace::TraceLayer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
-use crate::routes::{create_link, health, redirect, update_link};
+use crate::routes::{create_link, get_link_statistics, health, redirect, update_link};
 
 mod routes;
 mod utils;
@@ -37,6 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .route("/health", get(health))
         .route("/metrics", get(|| async move { metrics_handler.render() }))
+        .route("/{id}/statistics", get(get_link_statistics))
         .route("/{id}", patch(update_link).get(redirect))
         .route("/create", post(create_link))
         .layer(TraceLayer::new_for_http())
